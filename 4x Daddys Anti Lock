@@ -1,4 +1,5 @@
---[[ skidd kiddo u can steal ma script ]]--
+--[[ skidd kidds can steal ma script
+    u thought hahaha btw ur gay no one loves u ]]--
 
 
 -- Variables
@@ -22,11 +23,11 @@ end
 local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = player.PlayerGui
 
--- Create a main toggle button for mobile
+-- Create a main toggle button for mobile (positioned at top-left corner)
 local toggleButton = Instance.new("TextButton")
 toggleButton.Parent = screenGui
 toggleButton.Size = UDim2.new(0, 60, 0, 30)  -- Small size: 60px width, 30px height
-toggleButton.Position = UDim2.new(0.5, -30, 0.9, -15)  -- Centered at the bottom with padding
+toggleButton.Position = UDim2.new(0, 10, 0, 10)  -- Positioned at top-left corner with 10px padding
 toggleButton.Text = "Enable"
 toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleButton.BackgroundColor3 = Color3.fromRGB(169, 169, 169)  -- Grey background
@@ -46,33 +47,38 @@ lockButton.TextSize = 12  -- Smaller text size for the "4x Lock" button
 lockButton.BorderSizePixel = 2  -- Set border thickness
 lockButton.BorderColor3 = Color3.fromRGB(0, 0, 255)  -- Blue border outline
 
--- Draggable functionality for the toggle button
+-- Draggable functionality for both desktop and mobile
 local dragging = false
 local dragInput, dragStart, startPos
 
-toggleButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        -- Begin dragging
+local function onDragStart(input)
+    -- Only start dragging when the input is MouseButton1 or Touch
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
         dragStart = input.Position
         startPos = toggleButton.Position
     end
-end)
+end
 
-toggleButton.InputChanged:Connect(function(input)
+local function onDragMove(input)
     if dragging then
-        -- Update position while dragging
+        -- Calculate how much the button has moved
         local delta = input.Position - dragStart
         toggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
-end)
+end
 
-toggleButton.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        -- Stop dragging
+local function onDragEnd(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        -- Stop dragging when the input is released
         dragging = false
     end
-end)
+end
+
+-- Bind input for both mouse and touch
+toggleButton.InputBegan:Connect(onDragStart)
+toggleButton.InputChanged:Connect(onDragMove)
+toggleButton.InputEnded:Connect(onDragEnd)
 
 -- Function to detect if another player is locking on to you
 function DetectLockOn()
