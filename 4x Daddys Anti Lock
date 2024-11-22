@@ -1,0 +1,202 @@
+--[[ 4x daddy antilock is oppp lol ]]--
+
+
+
+-- Variables
+local player = game.Players.LocalPlayer
+local camera = game.Workspace.CurrentCamera
+local isLockedOn = false
+local targetPlayer = nil
+local rotating = false
+local shootDirection = nil
+local lockOnThreshold = 20  -- Distance threshold for detecting lock-on
+local originalCameraPosition = nil  -- Store original camera position when locked
+local antiLockEnabled = false  -- To track whether anti-lock is enabled or not
+local is4xLockActive = false  -- Flag for 4x Lock feature
+
+-- Randomization for tight security
+local function randomize(value, range)
+    return value + math.random(-range, range)
+end
+
+-- Create a screen GUI to hold the buttons
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = player.PlayerGui
+
+-- Create a main toggle button for mobile
+local toggleButton = Instance.new("TextButton")
+toggleButton.Parent = screenGui
+toggleButton.Size = UDim2.new(0, 60, 0, 30)  -- Small size: 60px width, 30px height
+toggleButton.Position = UDim2.new(0.5, -30, 0.9, -15)  -- Centered at the bottom with padding
+toggleButton.Text = "Enable"
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.BackgroundColor3 = Color3.fromRGB(169, 169, 169)  -- Grey background
+toggleButton.Font = Enum.Font.SourceSans
+toggleButton.TextSize = 14  -- Smaller text size for the toggle button
+
+-- Create a "4x Lock" button inside the main toggle button
+local lockButton = Instance.new("TextButton")
+lockButton.Parent = toggleButton  -- Make it a child of the main toggle button
+lockButton.Size = UDim2.new(1, 0, 0.5, 0)  -- Size: 100% width, 50% height of the toggle button
+lockButton.Position = UDim2.new(0, 0, 0.5, 0)  -- Positioned at the bottom half of the toggle button
+lockButton.Text = "4x Lock"
+lockButton.TextColor3 = Color3.fromRGB(0, 0, 0)  -- Black text color
+lockButton.BackgroundColor3 = Color3.fromRGB(128, 128, 128)  -- Darker grey for 4x Lock button
+lockButton.Font = Enum.Font.SourceSans
+lockButton.TextSize = 12  -- Smaller text size for the "4x Lock" button
+lockButton.BorderSizePixel = 2  -- Set border thickness
+lockButton.BorderColor3 = Color3.fromRGB(0, 0, 255)  -- Blue border outline
+
+-- Draggable functionality for the toggle button
+local dragging = false
+local dragInput, dragStart, startPos
+
+toggleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        -- Begin dragging
+        dragging = true
+        dragStart = input.Position
+        startPos = toggleButton.Position
+    end
+end)
+
+toggleButton.InputChanged:Connect(function(input)
+    if dragging then
+        -- Update position while dragging
+        local delta = input.Position - dragStart
+        toggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+toggleButton.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        -- Stop dragging
+        dragging = false
+    end
+end)
+
+-- Function to detect if another player is locking on to you
+function DetectLockOn()
+    for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+        if otherPlayer ~= player and otherPlayer.Character then
+            -- Raycast from the other player's camera position
+            local cameraPosition = otherPlayer.Character.HumanoidRootPart.Position
+            local direction = (player.Character.HumanoidRootPart.Position - cameraPosition).unit
+            local ray = Ray.new(cameraPosition, direction * lockOnThreshold)
+
+            -- Check if the ray hits the player's character (lock-on detection)
+            local hitPart, hitPosition = workspace:FindPartOnRay(ray, otherPlayer.Character)
+            if hitPart and hitPart.Parent == player.Character then
+                if not isLockedOn then
+                    isLockedOn = true
+                    targetPlayer = otherPlayer
+                    StartRotation(otherPlayer)
+                end
+                return
+            end
+        end
+    end
+
+    -- If no one is locking on, stop the rotation for the previous lock-on player
+    if isLockedOn then
+        isLockedOn = false
+        StopRotation()
+    end
+end
+
+-- Start rotating the camera of the locking player
+function StartRotation(target)
+    -- Only affect the target player's camera, not the executing player's camera
+    if target == player then
+        return  -- Don't affect the executing player's camera
+    end
+
+    local targetCamera = target:FindFirstChild("PlayerScripts") and target.PlayerScripts:FindFirstChild("CameraScript")
+    if targetCamera then
+        -- Apply randomization to camera rotation and simulate randomness
+        local rotationSpeed = randomize(2, 5)  -- Randomize rotation speed slightly to add unpredictability
+        local cameraOffset = camera.CFrame.Position - target.Character.HumanoidRootPart.Position
+        originalCameraPosition = cameraOffset
+        
+        rotating = true
+        while rotating do
+            -- Apply random rotation
+            targetCamera.CFrame = targetCamera.CFrame * CFrame.Angles(math.rad(rotationSpeed), math.rad(1), 0)  -- Adjust speed as needed
+
+            -- Avoid forcing the character too close to the camera, causing teleportation
+            local cameraTargetPos = target.Character.HumanoidRootPart.CFrame.Position + cameraOffset
+            camera.CFrame = CFrame.new(cameraTargetPos) * CFrame.Angles(math.rad(90), 0, 0)  -- Maintain offset
+            
+            wait(randomize(0.02, 0.03))  -- Control the speed of the rotation with random delays to prevent easy detection
+        end
+    end
+end
+
+-- Stop rotating the target player's camera
+function StopRotation()
+    rotating = false
+end
+
+-- Detect if the locked player shoots and redirect the bullets
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if isLockedOn then
+            -- Get the camera's forward direction
+            shootDirection = camera.CFrame.LookVector
+            
+            -- Create a bullet or raycast from the camera's position in the shoot direction
+            local bullet = Instance.new("Part")
+            bullet.Size = Vector3.new(1, 1, 5)
+            bullet.Position = camera.CFrame.Position + shootDirection * 2  -- Position in front of the camera
+            bullet.Anchored = true
+            bullet.CanCollide = false
+            bullet.Color = Color3.fromRGB(255, 0, 0)  -- Bullet color
+            bullet.Parent = workspace
+            
+            -- Simulate bullet trajectory (for simplicity, we just move it forward)
+            local bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.Velocity = shootDirection * 100  -- Adjust speed of bullet
+            bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
+            bodyVelocity.Parent = bullet
+            
+            -- Destroy the bullet after 2 seconds
+            game:GetService("Debris"):AddItem(bullet, 2)
+        end
+    end
+end)
+
+-- Update every frame to detect lock-on if anti-lock is enabled
+game:GetService("RunService").Heartbeat:Connect(function()
+    if antiLockEnabled then
+        DetectLockOn()
+    end
+end)
+
+-- Toggle button functionality
+toggleButton.MouseButton1Click:Connect(function()
+    antiLockEnabled = not antiLockEnabled  -- Toggle the anti-lock system
+    if antiLockEnabled then
+        toggleButton.Text = "Disable"  -- Change button text to indicate it's enabled
+    else
+        toggleButton.Text = "Enable"  -- Change button text to indicate it's disabled
+        -- When disabled, stop any current lock-ons or rotations
+        if isLockedOn then
+            isLockedOn = false
+            StopRotation()
+        end
+    end
+end)
+
+-- "4x Lock" button functionality
+lockButton.MouseButton1Click:Connect(function()
+    is4xLockActive = not is4xLockActive  -- Toggle the 4x Lock feature
+    if is4xLockActive then
+        lockButton.Text = "4x Lock On"  -- Indicate that 4x Lock is enabled
+        -- You can add additional logic for what the 4x Lock does here
+        print("4x Lock is now active!")
+    else
+        lockButton.Text = "4x Lock"  -- Indicate that 4x Lock is disabled
+        print("4x Lock is now disabled.")
+    end
+end)
